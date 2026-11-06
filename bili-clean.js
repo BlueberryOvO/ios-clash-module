@@ -26,7 +26,7 @@
 
     // 「我的」页要清掉的入口（精确匹配 + 必须是"入口/网格项"，不会误伤稿件）
     mineDropWords: [
-      '会员购', '会员购订单', '会员中心', '大会员', '开通会员', '我的钱包', '钱包', 'B币', '充值',
+      '会员购', '会员购订单', '会员中心', '大会员', '开通会员', '开通大会员', '立即开通', '我的钱包', '钱包', 'B币', '充值',
       '游戏中心', '我的游戏', '课堂', '课程', '我的课程', '免费课程',
       '充电', '任务中心', '领福利', '商城', '电商', '直播中心', '我的直播',
       '创作中心', '创作者中心', '稿件管理', '创作激励', '有奖活动', '开播福利',
@@ -208,6 +208,12 @@
     if (!body) { $done({}); return; }
 
     var raw = String(body);
+    // 超大响应直接放行: 解析几 MB 的 JSON 会把 Network Extension 拖到超时, 连带后续请求全部失效
+    if (raw.length > 1500000) { $done({}); return; }
+    // 快速通道: gRPC/protobuf 响应是二进制, 首字符不是 { 或 [ 就直接放行, 避免每次都抛异常
+    var c0 = raw.replace(/^\s+/, '').charAt(0);
+    if (c0 !== '{' && c0 !== '[') { $done({}); return; }
+
     var hadTarget = raw.indexOf('会员购') >= 0 || raw.indexOf('关注') >= 0;
     var json = JSON.parse(raw);
 
@@ -269,6 +275,10 @@
         notify('「我的」页已精简', url);
         done(json);
         return;
+      }
+      if (/account|member|mine|space/i.test(url)) {
+        var keys = json && json.data && typeof json.data === 'object' ? Object.keys(json.data) : Object.keys(json || {});
+        notify('未识别: ' + url.split('?')[0].replace(/^https?:\/\/[^\/]+/, ''), '字段: ' + keys.slice(0, 10).join(','));
       }
     }
 
