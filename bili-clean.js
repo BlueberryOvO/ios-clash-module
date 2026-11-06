@@ -24,13 +24,18 @@
     // 想只留两项就删掉 '热门'; 想全删就设成 []
     keepTabNames: ['直播', '推荐', '热门'],
 
-    // 「我的」页要清掉的入口(精确匹配 + 必须带 bilibili:// 链接, 不会误伤稿件标题)
+    // 「我的」页要清掉的入口（精确匹配 + 必须是"入口/网格项"，不会误伤稿件）
     mineDropWords: [
-      '会员购', '会员中心', '大会员', '我的钱包', '钱包', 'B币', '充值',
+      '会员购', '会员购订单', '会员中心', '大会员', '开通会员', '我的钱包', '钱包', 'B币', '充值',
       '游戏中心', '我的游戏', '课堂', '课程', '我的课程', '免费课程',
-      '充电', '任务中心', '领福利', '商城', '电商', '直播中心',
-      '创作者中心', '创作中心', '客服中心'
+      '充电', '任务中心', '领福利', '商城', '电商', '直播中心', '我的直播',
+      '创作中心', '创作者中心', '稿件管理', '创作激励', '有奖活动', '开播福利',
+      '主播中心', '直播数据', '主播活动',
+      '小程序', '看视频免流量', '个性装扮', '漫画', '必火推广', '社区中心',
+      '哔哩哔哩公益', '工房', '能量加油站', '英雄联盟S16', '英雄联盟', '客服中心'
     ],
+    // 整块删除的分区标题（分区内条目清空后，连标题一起删）
+    mineSectionWords: ['创作中心', '我的服务'],
     // 「我的」页要清掉的卡片类型(横幅/推广位)
     mineDropCards: /^(ad|ads|banner|mall|game|activity|promo)/i,
 
@@ -93,23 +98,76 @@
     return false;
   }
 
-  // 「我的」页杂项: 必须带 bilibili:// 链接或属于推广卡片, 避免误伤稿件标题
+  // 「我的」页杂项: 必须是"入口/网格项"才删, 视频稿件一律放过
   function mineJunk(o) {
     if (!o || typeof o !== 'object' || Array.isArray(o)) return false;
 
-    var uri = (typeof o.uri === 'string' && o.uri) ||
-              (typeof o.url === 'string' && o.url) || '';
-    var isJump = uri.indexOf('bilibili://') === 0;
+    // 稿件特征: 有 aid/bvid/cid/cover 的一律不碰
+    if (o.aid || o.bvid || o.cid || o.avid || o.cover || (o.goto === 'av')) return false;
 
-    if (isJump) {
-      var names = [o.title, o.name, o.tab_name, o.sub_title, o.main_title, o.card_title];
-      for (var i = 0; i < names.length; i++) {
-        if (typeof names[i] === 'string' && CFG.mineDropWords.indexOf(names[i]) >= 0) return true;
-      }
+    // 必须有"入口"特征: 图标 / 跳转 / 卡片类型
+    var looksLikeEntry = !!(o.icon || o.icon_url || o.icon_selected || o.icon_name ||
+                            o.uri || o.url || o.goto || o.card_type || o.tab_id);
+    if (!looksLikeEntry) return false;
+
+    var keys = ['title', 'name', 'tab_name', 'sub_title', 'main_title', 'card_title', 'text', 'desc'];
+    for (var i = 0; i < keys.length; i++) {
+      var v = o[keys[i]];
+      if (typeof v === 'string' && CFG.mineDropWords.indexOf(v) >= 0) return true;
     }
 
     if (typeof o.card_type === 'string' && CFG.mineDropCards.test(o.card_type)) return true;
     return false;
+  }
+
+  // 分区内条目被清空后，把分区标题一起删掉（否则留个空标题很难看）
+  function stripSections(json) {
+    json = markEmpties(json);
+    return removeMarked(json);
+  }
+
+  function markEmpties(node) {
+    if (Array.isArray(node)) {
+      for (var i = 0; i < node.length; i++) node[i] = markEmpties(node[i]);
+      return node;
+    }
+    if (!node || typeof node !== 'object') return node;
+
+    var hasAnyArray = false, allEmpty = true;
+    for (var k in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+      node[k] = markEmpties(node[k]);
+      if (Array.isArray(node[k])) {
+        hasAnyArray = true;
+        if (node[k].length > 0) allEmpty = false;
+      }
+    }
+    var title = node.title || node.name || node.tab_name || '';
+    if (hasAnyArray && allEmpty && typeof title === 'string' &&
+        CFG.mineSectionWords.indexOf(title) >= 0) {
+      node.__biliEmpty = 1;
+    }
+    return node;
+  }
+
+  function removeMarked(node) {
+    if (Array.isArray(node)) {
+      var out = [];
+      for (var i = 0; i < node.length; i++) {
+        var it = node[i];
+        if (it && typeof it === 'object' && it.__biliEmpty) continue;
+        out.push(removeMarked(it));
+      }
+      return out;
+    }
+    if (!node || typeof node !== 'object') return node;
+    for (var k in node) {
+      if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+      var v = node[k];
+      if (v && typeof v === 'object' && !Array.isArray(v) && v.__biliEmpty) { delete node[k]; continue; }
+      node[k] = removeMarked(v);
+    }
+    return node;
   }
 
   function filterDeep(node, predicate) {
@@ -202,10 +260,11 @@
       if (log.length) { done(json); return; }
     }
 
-    // 5) 「我的」页等接口: 清掉钱包/游戏/课程/任务/推广卡
+    // 5) 「我的」页等接口: 清掉钱包/游戏/课程/任务/推广卡, 并删掉空掉的分区标题
     if (CFG.cleanMine) {
       var lenBefore = raw.length;
       json = filterDeep(json, mineJunk);
+      json = stripSections(json);
       if (JSON.stringify(json).length !== lenBefore) {
         notify('「我的」页已精简', url);
         done(json);
