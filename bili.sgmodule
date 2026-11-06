@@ -1,0 +1,8 @@
+#!name=B站精简
+#!desc=顶部只留直播/推荐/热门，删会员购/关注，精简「我的」页，去广告
+
+[Script]
+BiliClean = type=http-response, pattern=^https?://(app|api)\.bilibili\.com/, requires-body=1, max-size=1048576, script-update-interval=2592000, script-path=https://api.pastes.dev/7XvjApKvwf
+
+[MITM]
+hostname = %APPEND% app.bilibili.com, api.bilibili.com
