@@ -7,8 +7,8 @@
 
 #==================================================================
 # 用法：
-#   1) 把 bili.js 放到一个 http(s) 绝对地址（见下面三种写法）
-#   2) 把四行的 SCRIPT_URL 全部替换成该地址
+#   1) bili.js 已在本仓库根目录，下面的 script-path 直接指向它
+#   2) 已绑定本仓库：https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 #   3) 先删掉旧模块，再导入本模块（同一响应只会跑第一个匹配脚本）
 #
 # 注意：Clash-Client 的 script-path 只收 http(s)，
@@ -24,10 +24,10 @@
 #==================================================================
 
 [Script]
-BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab/v2, requires-body=1, max-size=524288, script-update-interval=86400, script-path=SCRIPT_URL
-BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=SCRIPT_URL
-BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=SCRIPT_URL
-BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=SCRIPT_URL
+BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab/v2, requires-body=1, max-size=524288, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 
 # 只在这一行写 app.bilibili.com。MITM 主机集是"模块 + 你配置里原有的"取并集，
 # 日志里连 i0/i1/s1.hdslb.com、grpc.biliapi.net、mall/pay/passport 都被接管，
