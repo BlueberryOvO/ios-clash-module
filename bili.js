@@ -116,7 +116,10 @@ function applyKeep(arr, stats) {
     for (i = 0; i < arr.length; i++) {
         if (keepHit(arr[i])) matched++;
     }
-    if (matched < 2) return false;
+    if (matched < 2) {
+        say('tab 白名单只命中 ' + matched + ' 项，放弃过滤（保留原样）');
+        return false;
+    }
 
     var kept = [];
     for (i = 0; i < arr.length; i++) {
@@ -315,12 +318,31 @@ function handleSplash(url, body) {
     return JSON.stringify(obj);
 }
 
+/* 日志用：去掉域名和 query，只留路径 */
+function shortPath(u) {
+    return String(u || '').replace(/^https?:\/\/[^\/]+/, '').split('?')[0];
+}
+
+/* 日志用：列出对象前 n 个键，用来看数据结构有没有变 */
+function keyList(o, n) {
+    if (!o || typeof o !== 'object') return '-';
+    var out = [];
+    for (var k in o) {
+        if (!Object.prototype.hasOwnProperty.call(o, k)) continue;
+        out.push(k);
+        if (out.length >= (n || 8)) break;
+    }
+    return out.join(',') || '-';
+}
+
 function handleJson(url, body, list) {
     var obj = null;
     try { obj = JSON.parse(body); } catch (e) { return null; }
     if (!obj || typeof obj !== 'object') return null;
 
     var target = (obj.data && typeof obj.data === 'object') ? obj.data : obj;
+    say('hit ' + shortPath(url) + ' | keys: ' + keyList(target));
+
     var stats = { dropped: [] };
     prune(target, 'data', 0, list, stats);
 
@@ -340,7 +362,7 @@ function handleJson(url, body, list) {
         if (body) {
             if (/\/x\/v2\/splash\/(show|list)/.test(url)) {
                 out = handleSplash(url, body);
-            } else if (/\/x\/resource\/(show|patch)\/tab\/v2/.test(url)) {
+            } else if (/\/x\/resource\/(show|patch)\/tab(\/v2)?/.test(url)) {
                 out = handleJson(url, body, CFG.DROP_TOP);
             } else if (/\/x\/v2\/account\/mine/.test(url)) {
                 out = handleJson(url, body, CFG.DROP_MINE);

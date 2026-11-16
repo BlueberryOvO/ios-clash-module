@@ -24,7 +24,7 @@
 #==================================================================
 
 [Script]
-BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab/v2, requires-body=1, max-size=524288, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab(/v2)?, requires-body=1, max-size=524288, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
