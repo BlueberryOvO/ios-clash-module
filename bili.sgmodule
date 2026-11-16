@@ -1,8 +1,42 @@
-#!name=B站精简
-#!desc=顶部只留直播/推荐/热门，删会员购/关注，精简「我的」页，去广告
+#!name=B站精简·修复版
+#!desc=顶部只留直播/推荐/热门，删底部会员购/关注，精简「我的」页，去开屏广告，清推荐流广告卡。修复：脚本源可自控、补上 splash/show、子串匹配会员购中心、默认选中补位、异常一律透传
+#!author=Little Code Sauce
+#!homepage=https://github.com/BlueberryOvo/ios-clash-module
+#!system=ios
+#!category=去广告
+
+#==================================================================
+# 用法：
+#   1) 把 bili.js 放到一个 http(s) 绝对地址（见下面三种写法）
+#   2) 把四行的 SCRIPT_URL 全部替换成该地址
+#   3) 先删掉旧模块，再导入本模块（同一响应只会跑第一个匹配脚本）
+#
+# 注意：Clash-Client 的 script-path 只收 http(s)，
+#      相对路径 ./bili.js、本地文件、data: URI 一律进「已跳过」。
+#
+# 三种可用写法：
+#   A. 自己仓库 raw（长期）
+#      https://raw.githubusercontent.com/<用户名>/<仓库>/main/bili.js
+#   B. jsDelivr 镜像（GitHub 直连不稳时）
+#      https://cdn.jsdelivr.net/gh/<用户名>/<仓库>@main/bili.js
+#   C. 局域网自测（临时）
+#      http://<电脑局域网IP>:8000/bili.js
+#==================================================================
 
 [Script]
-BiliClean = type=http-response, pattern=^https?://(app|api)\.bilibili\.com/, requires-body=1, max-size=1048576, script-update-interval=2592000, script-path=https://api.pastes.dev/7XvjApKvwf
+BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab/v2, requires-body=1, max-size=524288, script-update-interval=86400, script-path=SCRIPT_URL
+BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=SCRIPT_URL
+BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=SCRIPT_URL
+BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=SCRIPT_URL
 
+# 只在这一行写 app.bilibili.com。MITM 主机集是"模块 + 你配置里原有的"取并集，
+# 日志里连 i0/i1/s1.hdslb.com、grpc.biliapi.net、mall/pay/passport 都被接管，
+# 说明配置里本来就有一份 B 站域集合——那份才是 50MB 内存预算的主要消耗者。
 [MITM]
-hostname = %APPEND% app.bilibili.com, api.bilibili.com
+hostname = %APPEND% app.bilibili.com
+
+# 可选：客户端支持 reject-dict 时取消注释，用 0 脚本成本干掉三个纯广告接口。
+#[URL Rewrite]
+#^https?://app\.bilibili\.com/x/resource/top/activity - reject-dict
+#^https?://app\.bilibili\.com/x/v2/search/defaultwords - reject-dict
+#^https?://app\.bilibili\.com/x/resource/ip - reject-dict
