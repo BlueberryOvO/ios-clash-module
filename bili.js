@@ -35,13 +35,23 @@ var CFG = {
     AD_GOTO: ['ad', 'cm', 'mall', 'banner', 'activity'],
     // 递归深度上限，防止畸形 JSON 把运行时拖死
     MAX_DEPTH: 6,
-    // 排查问题时改 true，客户端日志里能看到 [bili-fix] 输出
-    DEBUG: true
+    // 详细日志（hit / keys / 白名单放弃 / splash 命中）。排错时改 true。
+    // 真正"删掉了东西"的日志不受这个开关控制，永远会打一行。
+    DEBUG: false
 };
 
 function say(msg) {
     try {
         if (CFG.DEBUG && typeof console !== 'undefined' && console.log) {
+            console.log('[bili-fix] ' + msg);
+        }
+    } catch (e) { /* 日志失败不影响业务 */ }
+}
+
+/* 不受 DEBUG 控制：只有真的改动了响应才打，一次启动最多几行 */
+function sayAlways(msg) {
+    try {
+        if (typeof console !== 'undefined' && console.log) {
             console.log('[bili-fix] ' + msg);
         }
     } catch (e) { /* 日志失败不影响业务 */ }
@@ -242,7 +252,7 @@ function handleFeed(body) {
     prunePredicate(target, 'data', 0, isAdItem, stats);
     if (!stats.dropped.length) return null;
 
-    say('feed ads dropped: ' + stats.dropped.join(' | '));
+    sayAlways('feed ads dropped: ' + stats.dropped.join(' | '));
     return JSON.stringify(obj);
 }
 
@@ -349,7 +359,7 @@ function handleJson(url, body, list) {
     if (!stats.dropped.length) return null;   // 没有命中就不回写，日志里显示 unchanged
 
     fixSegments(target);
-    say('dropped: ' + stats.dropped.join(' | '));
+    sayAlways('dropped: ' + stats.dropped.join(' | '));
     return JSON.stringify(obj);
 }
 
