@@ -1,6 +1,5 @@
 #!name=B站简洁版
 #!desc=顶栏只留直播/推荐/热门、我的页删推广入口、tab响应去缓存头。含jq整段替换+MapLocal置空+Rule拒绝+gRPC去广告。
-#!author=Little Code Sauce (定制) / 奶思 (jq规则来源)
 #!homepage=https://github.com/BlueberryOvo/ios-clash-module
 #!system=ios
 #!category=去广告
