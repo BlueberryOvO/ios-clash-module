@@ -28,8 +28,12 @@ var CFG = {
     DROP_TOP: ['会员购', '关注', '课堂', '漫画', '公益', '放映厅', '发布', '社区', '付费', '游戏中心', '活动'],
     // 底部导航栏只删这两个，别动「首页/动态/我的」，否则 App 可能闪退
     DROP_BOTTOM: ['会员购', '关注'],
-    // 「我的」页要删掉的入口
+    // 「我的」页要删掉的入口（黑名单，只在白名单失效时兜底）
     DROP_MINE: ['会员购', '我的课程', '游戏中心', '创作中心', '课堂', '漫画', '会员中心', '我的钱包', '客服'],
+    // 「我的」页只保留这些（白名单，按标题子串匹配）。
+    // B 站新加的推广位不在名单里就会被自动删掉，这才是"经常不干净"的根治办法。
+    KEEP_MINE: ['历史记录', '我的收藏', '收藏', '稍后再看', '离线缓存', '下载记录',
+                '我的关注', '设置', '联系客服', '意见反馈'],
     // 推荐流广告卡类型（原脚本只认 ad/banner/mall 前缀，漏了 B 站真在用的 cm_v2）
     AD_CARD_TYPES: ['cm_v2', 'cm', 'ad', 'ads', 'advert', 'banner_v1', 'banner_v2', 'live_ad', 'pgc_card', 'mall'],
     AD_GOTO: ['ad', 'cm', 'mall', 'banner', 'activity'],
@@ -363,9 +367,174 @@ function handleJson(url, body, list) {
     return JSON.stringify(obj);
 }
 
+/* ================= 「我的」页 =================
+ * 黑名单永远追不上 B 站新加的推广位，所以这里走白名单：
+ * 先数一遍现有的「有用入口」命中几项，够 3 项就只保留它们，其余全删；
+ * 不够 3 项（说明 B 站改名了）自动退回黑名单，绝不把整页清空。
+ */
+
+function mineTitle(el) {
+    if (!el || typeof el !== 'object' || isArray(el)) return '';
+    if (typeof el.title === 'string') return el.title;
+    if (typeof el.name === 'string') return el.name;
+    return '';
+}
+
+/* 是不是一个「入口/卡片」：有标题且带 uri/url/icon/id 之类的特征 */
+function looksLikeEntry(el) {
+    if (!el || typeof el !== 'object' || isArray(el)) return false;
+    var t = mineTitle(el);
+    if (!t) return false;
+    return !!(typeof el.uri === 'string' || typeof el.url === 'string' ||
+              el.icon || el.icon_url || el.biz_key ||
+              typeof el.id === 'number' || typeof el.id === 'string');
+}
+
+/* 收集所有入口，用来判断该用白名单还是黑名单 */
+function collectEntries(node, depth, out) {
+    if (!node || typeof node !== 'object' || depth > 5) return;
+    if (isArray(node)) {
+        for (var i = 0; i < node.length; i++) collectEntries(node[i], depth + 1, out);
+        return;
+    }
+    if (looksLikeEntry(node)) out.push(mineTitle(node));
+    for (var k in node) {
+        if (Object.prototype.hasOwnProperty.call(node, k)) collectEntries(node[k], depth + 1, out);
+    }
+}
+
+function pruneMine(node, depth, mode, dropList, keepList, stats) {
+    if (!node || typeof node !== 'object' || depth > 5) return;
+
+    if (isArray(node)) {
+        var kept = [];
+        for (var i = 0; i < node.length; i++) {
+            var el = node[i];
+            if (looksLikeEntry(el)) {
+                var t = mineTitle(el);
+                var drop = (mode === 'keep') ? !hitAny(t, keepList) : hitAny(t, dropList);
+                if (drop) { stats.dropped.push(t); continue; }
+            }
+            kept.push(el);
+            pruneMine(el, depth + 1, mode, dropList, keepList, stats);
+        }
+        if (kept.length !== node.length) {
+            node.length = 0;
+            for (var j = 0; j < kept.length; j++) node.push(kept[j]);
+        }
+        return;
+    }
+
+    for (var k in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+        pruneMine(node[k], depth + 1, mode, dropList, keepList, stats);
+    }
+}
+
+/* 条目被删空的分组整组去掉；顺手清掉分组上的推广位（大按钮/引导文案） */
+function tidySections(node, depth, stats) {
+    if (!node || typeof node !== 'object' || depth > 5) return;
+
+    if (isArray(node)) {
+        var kept = [];
+        for (var i = 0; i < node.length; i++) {
+            var el = node[i];
+            if (el && typeof el === 'object' && !isArray(el) &&
+                isArray(el.items) && el.items.length === 0 && typeof el.title === 'string') {
+                stats.dropped.push('分组:' + el.title);
+                continue;
+            }
+            kept.push(el);
+            tidySections(el, depth + 1, stats);
+        }
+        if (kept.length !== node.length) {
+            node.length = 0;
+            for (var j = 0; j < kept.length; j++) node.push(kept[j]);
+        }
+        return;
+    }
+
+    if (node.button && typeof node.button === 'object' && !isArray(node.button) && node.button.text) {
+        node.button = {};
+    }
+    var promo = ['be_up_title', 'tip_icon', 'tip_title'];
+    for (var p = 0; p < promo.length; p++) {
+        if (Object.prototype.hasOwnProperty.call(node, promo[p])) delete node[promo[p]];
+    }
+
+    for (var k in node) {
+        if (!Object.prototype.hasOwnProperty.call(node, k)) continue;
+        tidySections(node[k], depth + 1, stats);
+    }
+}
+
+function handleMine(body) {
+    var obj = null;
+    try { obj = JSON.parse(body); } catch (e) { return null; }
+    if (!obj || typeof obj !== 'object') return null;
+    var target = (obj.data && typeof obj.data === 'object') ? obj.data : obj;
+
+    var titles = [];
+    collectEntries(target, 0, titles);
+    var keepHitCount = 0;
+    for (var i = 0; i < titles.length; i++) {
+        if (hitAny(titles[i], CFG.KEEP_MINE)) keepHitCount++;
+    }
+    var mode = keepHitCount >= 3 ? 'keep' : 'drop';
+
+    say('mine 入口 ' + titles.length + ' 个，白名单命中 ' + keepHitCount + ' → ' + (mode === 'keep' ? '白名单' : '黑名单回退'));
+
+    var stats = { dropped: [] };
+    pruneMine(target, 0, mode, CFG.DROP_MINE, CFG.KEEP_MINE, stats);
+    tidySections(target, 0, stats);
+
+    if (!stats.dropped.length) return null;
+
+    sayAlways('mine dropped(' + mode + '): ' + stats.dropped.slice(0, 16).join(' | ') +
+              (stats.dropped.length > 16 ? ' …共' + stats.dropped.length + '项' : ''));
+    return JSON.stringify(obj);
+}
+
+/* 请求阶段：只干一件事——去掉条件缓存头。
+ * 「我的」页被 App 缓存后，再请求常带 If-None-Match/If-Modified-Since，
+ * 服务端回 304 没有 body，脚本拿不到东西，App 就继续用旧（脏）缓存。
+ * 抹掉这两个头，服务端只能回 200 全量，改写才有机会生效。
+ */
+function handleRequest(url) {
+    try {
+        if (!/\/x\/v2\/account\/mine/.test(url)) { $done({}); return; }
+        var hdrs = (typeof $request !== 'undefined' && $request && $request.headers) ? $request.headers : null;
+        if (!hdrs) { $done({}); return; }
+
+        var out = {}, changed = false;
+        for (var k in hdrs) {
+            if (!Object.prototype.hasOwnProperty.call(hdrs, k)) continue;
+            var lk = String(k).toLowerCase();
+            if (lk === 'if-none-match' || lk === 'if-modified-since' || lk === 'if-range') {
+                changed = true;
+                continue;
+            }
+            out[k] = hdrs[k];
+        }
+        if (!changed) { $done({}); return; }
+        say('mine request: 去掉条件缓存头，强制走 200');
+        $done({ headers: out });
+    } catch (e) {
+        say('request handler error: ' + e);
+        $done({});
+    }
+}
+
 (function main() {
     var url = (typeof $request !== 'undefined' && $request && $request.url) ? $request.url : '';
-    var body = (typeof $response !== 'undefined' && $response && $response.body) ? $response.body : '';
+
+    // 没有 $response = 请求阶段
+    if (typeof $response === 'undefined' || !$response) {
+        handleRequest(url);
+        return;
+    }
+
+    var body = $response.body || '';
     var out = null;
 
     try {
@@ -375,7 +544,7 @@ function handleJson(url, body, list) {
             } else if (/\/x\/resource\/(show|patch)\/tab(\/v2)?/.test(url)) {
                 out = handleJson(url, body, CFG.DROP_TOP);
             } else if (/\/x\/v2\/account\/mine/.test(url)) {
-                out = handleJson(url, body, CFG.DROP_MINE);
+                out = handleMine(body);
             } else if (/\/x\/v2\/feed\/index/.test(url)) {
                 out = handleFeed(body);
             }

@@ -28,6 +28,7 @@ BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource
 BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliMineReq = type=http-request, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 
 # 只在这一行写 app.bilibili.com。MITM 主机集是"模块 + 你配置里原有的"取并集，
 # 日志里连 i0/i1/s1.hdslb.com、grpc.biliapi.net、mall/pay/passport 都被接管，
