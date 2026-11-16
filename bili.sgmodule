@@ -1,42 +1,57 @@
-#!name=B站精简·修复版
-#!desc=顶部只留直播/推荐/热门，删底部会员购/关注，精简「我的」页，去开屏广告，清推荐流广告卡。修复：脚本源可自控、补上 splash/show、子串匹配会员购中心、默认选中补位、异常一律透传
+#!name=B站精简·修复版v5
+#!desc=顶部只留直播/推荐/热门，删底部会员购/关注，精简「我的」页，去开屏广告，清推荐流广告卡。v5：从匹配层移除实测恒空的 patch/tab/v2 与未使用的 splash/list，消除每次冷启动 5 次空转脚本执行
 #!author=Little Code Sauce
 #!homepage=https://github.com/BlueberryOvo/ios-clash-module
 #!system=ios
 #!category=去广告
 
 #==================================================================
-# 用法：
-#   1) bili.js 已在本仓库根目录，下面的 script-path 直接指向它
-#   2) 已绑定本仓库：https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
-#   3) 先删掉旧模块，再导入本模块（同一响应只会跑第一个匹配脚本）
+# v5 相对 v4 的改动（依据 clash-logs-2026-11-17-0244..log 实测）
 #
-# 注意：Clash-Client 的 script-path 只收 http(s)，
-#      相对路径 ./bili.js、本地文件、data: URI 一律进「已跳过」。
+#  1) tab 匹配去掉 patch：^.../x/resource/(show|patch)/tab(/v2)?
+#                      -> ^.../x/resource/show/tab(/v2)?
+#     日志里 BiliTab 共 6 次执行，其中 5 次是 /x/resource/patch/tab/v2，
+#     全部 "unchanged"（每次 2~15ms）。该接口在 91901100 恒返回 data:{}，
+#     进脚本就是纯空转。移除后每次冷启动少 5 次脚本 VM 调用。
 #
-# 三种可用写法：
-#   A. 自己仓库 raw（长期）
-#      https://raw.githubusercontent.com/<用户名>/<仓库>/main/bili.js
-#   B. jsDelivr 镜像（GitHub 直连不稳时）
-#      https://cdn.jsdelivr.net/gh/<用户名>/<仓库>@main/bili.js
-#   C. 局域网自测（临时）
-#      http://<电脑局域网IP>:8000/bili.js
+#  2) splash 匹配去掉 list：^.../x/v2/splash/(show|list) -> ^.../x/v2/splash/show
+#     日志 4 次 splash 全是 show，list 0 次。且 splash/list 无广告时无 list 键。
+#     脚本内部 (show|list) 分流保留兼容，只是模块层不再喂它流量。
+#
+#  3) 保留 4 条独立入口 + 各自的 max-size，不合并。
+#     合并成一条总正则虽然能把 "5 scripts" 降到 "2 scripts"，但日志显示
+#     "compiled as built: 0.00 MiB of 21.02 MiB" —— 脚本本身不占规则内存，
+#     合并省不下内存，却会丢失各接口独立的 max-size（mine/feed 需要 1MiB，
+#     splash 只需 128KiB），得不偿失。5 条入口里未触发的 3 条是"页面没打开"，
+#     不是死配置：进「我的」页会触发 BiliMine + BiliMineReq，feed 走 REST 时才触发。
+#
+#  4) max-size / script-update-interval 数值不变。
+#     max-size 是"超过就跳过脚本、原文透传"的阈值，不是预分配内存，
+#     调小只会让大响应不再被精简，不会降低内存峰值。
+#
+#  关于内存：日志显示扩展预算 50MiB / GOMEMLIMIT 37.5MiB，模块编译后 0.00MiB，
+#  而配置自身 21.02MiB（geosite cn 111021 条 + geolocation-!cn 27198 条）。
+#  MITM 并集把 i0/i1/s1.hdslb.com、grpc.biliapi.net、mall/pay/passport 都解密了。
+#  真正该省内存的地方在客户端配置与 MITM 主机表，不在本模块 —— 见 README。
+#
+# 脚本源：Clash-Client 的 script-path 只收 http(s) 绝对 URL，
+#         相对路径/本地文件/data: URI 一律进「已跳过」。下面三选一：
+#   A. 自己仓库 raw（长期）：https://raw.githubusercontent.com/<用户名>/<仓库>/main/bili.js
+#   B. jsDelivr 镜像：https://cdn.jsdelivr.net/gh/<用户名>/<仓库>@main/bili.js
+#   C. 局域网自测：python -m http.server 8000 后 http://<电脑IP>:8000/bili.js
 #==================================================================
 
 [Script]
-BiliTab    = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/(show|patch)/tab(/v2)?, requires-body=1, max-size=524288, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
-BiliSplash = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/(show|list), requires-body=1, max-size=131072, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
-BiliMine   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
-BiliFeed   = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliTab     = type=http-response, pattern=^https?://app\.bilibili\.com/x/resource/show/tab(/v2)?, requires-body=1, max-size=524288, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliSplash  = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/splash/show, requires-body=1, max-size=131072, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliMine    = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
+BiliFeed    = type=http-response, pattern=^https?://app\.bilibili\.com/x/v2/feed/index, requires-body=1, max-size=1048576, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 BiliMineReq = type=http-request, pattern=^https?://app\.bilibili\.com/x/v2/account/mine, script-update-interval=86400, script-path=https://raw.githubusercontent.com/BlueberryOvo/ios-clash-module/main/bili.js
 
-# 只在这一行写 app.bilibili.com。MITM 主机集是"模块 + 你配置里原有的"取并集，
-# 日志里连 i0/i1/s1.hdslb.com、grpc.biliapi.net、mall/pay/passport 都被接管，
-# 说明配置里本来就有一份 B 站域集合——那份才是 50MB 内存预算的主要消耗者。
 [MITM]
 hostname = %APPEND% app.bilibili.com
 
-# 可选：客户端支持 reject-dict 时取消注释，用 0 脚本成本干掉三个纯广告接口。
+# 客户端支持 reject-dict 时可取消注释，用 0 脚本成本干掉纯广告接口。
 #[URL Rewrite]
 #^https?://app\.bilibili\.com/x/resource/top/activity - reject-dict
 #^https?://app\.bilibili\.com/x/v2/search/defaultwords - reject-dict
