@@ -1,24 +1,9 @@
 #!name=B站简洁版
-#!desc=基于v6按实测反馈定制：顶栏只留直播/推荐/热门、我的页删推广入口、tab响应去缓存头。含jq整段替换+MapLocal置空+Rule拒绝+gRPC去广告。
+#!desc=顶栏只留直播/推荐/热门、我的页删推广入口、tab响应去缓存头。含jq整段替换+MapLocal置空+Rule拒绝+gRPC去广告。
 #!author=Little Code Sauce (定制) / 奶思 (jq规则来源)
 #!homepage=https://github.com/BlueberryOvo/ios-clash-module
 #!system=ios
 #!category=去广告
-
-#==================================================================
-# v7 定制说明（相对 v6 的改动）
-#   背景：0347 日志证明 v6 全部规则正常生效（18 rewrites 全编译、0 error、
-#     splash 7次 + show/tab 4次 全部 jq rewritten、patch/tab 6次全被置空）。
-#     但用户实测仍嫌不干净——原因是照搬的 fmz200 原版本身就留了这些内容。
-#   本版按用户标准定制三处（其余规则与 v6 逐字节一致）：
-#     1. 顶栏 tab：删除动画(id3502)、影视(id3503)，只留 直播/推荐/热门
-#     2. 我的页 account/mine：删除"推荐服务"整组（个性装扮/会员购/钱包/直播）
-#        保留 离线缓存/历史记录/我的收藏/稍后再看 + 更多服务(客服/设置)
-#     3. tab 响应去缓存：header-del cache-control/etag/last-modified/expires
-#        （解决 App 用本地缓存的旧 tab 覆盖改写结果的问题）
-#   注意：底栏"关注/会员购"若仍出现，是 App 已缓存的旧 tab，需杀进程重开；
-#         jq 写死的 bottom 本身只有 首页/动态/我的 三项。
-#==================================================================
 
 [Rule]
 # 广告/统计域名直接拒绝，0 脚本成本
